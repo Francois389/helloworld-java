@@ -1,24 +1,56 @@
+name: Build Test and Deploy
+
 on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-
 env:
   PROJECT_VERSION: 1.0.0
-
 jobs:
   build:
-    name: Build and Cache Dependencies
+    name: Build application
     runs-on: ubuntu-latest
-
+    steps:
+      - run: ls
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+      - run: ls
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4.5.0
+        with:
+          java-version: 17
+          distribution: temurin
+      - name: Cache
+        uses: actions/cache@v4.1.2
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: ${{ github.workspace }}/.m2/repository
+          # An explicit key for restoring and saving the cache
+          key: ${{ runner.os }}-maven-${{ hashfiles('**/pow.xml')}}
+      - name: Build project with Maven
+        run: mvn clean package -DskipTests
+        env:
+          MAVEN_OPTS: "-Dmaven.repo.local=${{ github.workspace }}/.m2/repository"
+  test:
+    name: Test application
+    runs-on: ubuntu-latest
+    needs: build
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2
       - name: Setup Java JDK
         uses: actions/setup-java@v4.5.0
         with:
-          # Java distribution. See the list of supported distributions in README file
-          distribution: zulu
+          java-version: 17
+          distribution: temurin
+      - name: Cache
+        uses: actions/cache@v4.1.2
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: ${{ github.workspace }}/.m2/repository
+          # An explicit key for restoring and saving the cache
+          key: ${{ runner.os }}-maven-${{ hashfiles('**/pow.xml')}}
+      - name: Test project with Maven
+        run: mvn clean package -DskipTests
+        env:
+          MAVEN_OPTS: "-Dmaven.repo.local=${{ github.workspace }}/.m2/repository"
