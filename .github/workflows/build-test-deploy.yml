@@ -1,56 +1,84 @@
 name: Build Test and Deploy
 
-on:
+on: 
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
+
 env:
   PROJECT_VERSION: 1.0.0
+  MAVEN_OPTS: -Dmaven.repo.local=/home/runner/work/lib
+
 jobs:
   build:
-    name: Build application
     runs-on: ubuntu-latest
     steps:
-      - run: ls
+    
+      - name: version projet
+        run: echo $PROJECT_VERSION
+
       - name: Checkout
         uses: actions/checkout@v4.2.2
-      - run: ls
+
       - name: Setup Java JDK
         uses: actions/setup-java@v4.5.0
         with:
-          java-version: 17
-          distribution: temurin
+          distribution: 'zulu'
+          java-version: '17'
+
       - name: Cache
         uses: actions/cache@v4.1.2
         with:
-          # A list of files, directories, and wildcard patterns to cache and restore
-          path: ${{ github.workspace }}/.m2/repository
-          # An explicit key for restoring and saving the cache
-          key: ${{ runner.os }}-maven-${{ hashfiles('**/pow.xml')}}
-      - name: Build project with Maven
-        run: mvn clean package -DskipTests
-        env:
-          MAVEN_OPTS: "-Dmaven.repo.local=${{ github.workspace }}/.m2/repository"
+          path: /home/runner/work/lib
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+
+      - name: build jar
+        run: mvn clean package -DskipTests -Djar.finalName=helloworld-${PROJECT_VERSION} $MAVEN_OPTS
+
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v4.4.3
+        with: 
+          name: artifact
+          path: /home/runner/work/helloworld-java/helloworld-java/target/helloworld-${{ env.PROJECT_VERSION }}.jar
+          if-no-files-found: warn
+
+      - name: test cp ls
+        run: | 
+          ls /home/runner/work/helloworld-java/helloworld-java/target/
+      
+
   test:
-    name: Test application
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build]
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2
-      - name: Setup Java JDK
-        uses: actions/setup-java@v4.5.0
-        with:
-          java-version: 17
-          distribution: temurin
+
       - name: Cache
         uses: actions/cache@v4.1.2
         with:
-          # A list of files, directories, and wildcard patterns to cache and restore
-          path: ${{ github.workspace }}/.m2/repository
-          # An explicit key for restoring and saving the cache
-          key: ${{ runner.os }}-maven-${{ hashfiles('**/pow.xml')}}
-      - name: Test project with Maven
-        run: mvn clean package -DskipTests
-        env:
-          MAVEN_OPTS: "-Dmaven.repo.local=${{ github.workspace }}/.m2/repository"
+          path: /home/runner/work/lib
+          key: dependances
+      
+      - name: tests maven
+        run: mvn test $MAVEN_OPTS
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4.1.2
+        with:
+          name: artifact
+
+      - name: Simuler le déploiement
+        run: |
+          echo "Simulating deployment for version $PROJECT_VERSION"
